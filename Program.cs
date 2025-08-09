@@ -25,26 +25,44 @@ var apiKeyOption = new Option<string>(
 };
 apiKeyOption.AddAlias("-k");
 
+var sizeOption = new Option<string>(
+    name: "--size",
+    description: "Image dimensions in WIDTHxHEIGHT format (e.g., 1024x1024, 512x768). Default is 1024x1024")
+{
+    IsRequired = false
+};
+sizeOption.AddAlias("-s");
+sizeOption.SetDefaultValue("1024x1024");
+
 var rootCommand = new RootCommand("ImageGenTool - Generate images using Google Gemini API")
 {
     promptOption,
     outputOption,
-    apiKeyOption
+    apiKeyOption,
+    sizeOption
 };
 
-rootCommand.SetHandler(async (string prompt, FileInfo output, string? apiKey) =>
+rootCommand.SetHandler(async (string prompt, FileInfo output, string? apiKey, string size) =>
 {
     try
     {
         Console.WriteLine("🎨 ImageGenTool - Generating image using Google Gemini API");
         Console.WriteLine($"📝 Prompt: {prompt}");
         Console.WriteLine($"📁 Output: {output.FullName}");
+        Console.WriteLine($"📐 Size: {size}");
         Console.WriteLine();
 
         // Validate inputs
         if (string.IsNullOrWhiteSpace(prompt))
         {
             Console.Error.WriteLine("❌ Error: Prompt cannot be empty");
+            return;
+        }
+
+        // Parse and validate size format
+        if (!TryParseSize(size, out int width, out int height))
+        {
+            Console.Error.WriteLine("❌ Error: Invalid size format. Use WIDTHxHEIGHT format (e.g., 1024x1024)");
             return;
         }
 
@@ -73,7 +91,7 @@ rootCommand.SetHandler(async (string prompt, FileInfo output, string? apiKey) =>
         // Generate image
         Console.WriteLine("🔄 Generating image...");
         using var generator = new GeminiImageGenerator(apiKey);
-        var imageData = await generator.GenerateImageAsync(prompt);
+        var imageData = await generator.GenerateImageAsync(prompt, width, height);
 
         // Save image
         Console.WriteLine("💾 Saving image...");
@@ -89,6 +107,23 @@ rootCommand.SetHandler(async (string prompt, FileInfo output, string? apiKey) =>
         Console.Error.WriteLine($"❌ Error: {ex.Message}");
         Environment.ExitCode = 1;
     }
-}, promptOption, outputOption, apiKeyOption);
+}, promptOption, outputOption, apiKeyOption, sizeOption);
+
+static bool TryParseSize(string sizeString, out int width, out int height)
+{
+    width = height = 0;
+    
+    if (string.IsNullOrWhiteSpace(sizeString))
+        return false;
+    
+    var parts = sizeString.Split('x', 'X');
+    if (parts.Length != 2)
+        return false;
+    
+    return int.TryParse(parts[0], out width) && 
+           int.TryParse(parts[1], out height) && 
+           width > 0 && height > 0 &&
+           width <= 4096 && height <= 4096; // Reasonable limits
+}
 
 return await rootCommand.InvokeAsync(args);
