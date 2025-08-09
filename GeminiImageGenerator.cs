@@ -1,4 +1,3 @@
-using System.Net.Sockets;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -17,44 +16,37 @@ public class GeminiImageGenerator : IDisposable
 
     public async Task<byte[]> GenerateImageAsync(string prompt)
     {
+        Console.WriteLine("🔄 Generating image with Google Gemini API...");
+        
         try
         {
-            Console.WriteLine("🔄 Attempting to generate image with OpenAI DALL-E API...");
-            
-            // Try to call OpenAI API first
-            try
-            {
-                return await CallOpenAiApiAsync(prompt);
-            }
-            catch (Exception apiEx) when (apiEx is HttpRequestException || apiEx.InnerException is SocketException)
-            {
-                Console.WriteLine($"⚠️  API call failed: {apiEx.Message}");
-                Console.WriteLine("🔄 Falling back to local image generation...");
-                
-                // Fallback to a more sophisticated placeholder that works offline
-                return await GenerateLocalImageAsync(prompt);
-            }
+            return await CallGeminiApiAsync(prompt);
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException($"Failed to generate image: {ex.Message}", ex);
+            throw new InvalidOperationException($"Failed to generate image with Gemini API: {ex.Message}", ex);
         }
     }
 
-    private async Task<byte[]> CallOpenAiApiAsync(string prompt)
+    private async Task<byte[]> CallGeminiApiAsync(string prompt)
     {
-        var requestUrl = "https://api.openai.com/v1/images/generations";
+        // Using Google's Imagen API (part of Google AI) for image generation
+        // Based on the documentation at https://ai.google.dev/gemini-api/docs/image-generation
+        var requestUrl = $"https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:generateImage?key={_apiKey}";
         
         _httpClient.DefaultRequestHeaders.Clear();
-        _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_apiKey}");
-        _httpClient.Timeout = TimeSpan.FromSeconds(30);
+        _httpClient.Timeout = TimeSpan.FromSeconds(60);
         
         var requestBody = new
         {
             prompt = prompt,
-            n = 1,
-            size = "1024x1024",
-            response_format = "b64_json"
+            config = new
+            {
+                number_of_images = 1,
+                image_format = "PNG",
+                aspect_ratio = "1:1",
+                safety_filter_level = "block_only_high"
+            }
         };
 
         var json = JsonSerializer.Serialize(requestBody, new JsonSerializerOptions
@@ -69,74 +61,24 @@ public class GeminiImageGenerator : IDisposable
         if (!response.IsSuccessStatusCode)
         {
             var errorContent = await response.Content.ReadAsStringAsync();
-            throw new HttpRequestException($"OpenAI API request failed: {response.StatusCode} - {errorContent}");
+            throw new HttpRequestException($"Gemini API request failed: {response.StatusCode} - {errorContent}");
         }
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        var openAiResponse = JsonSerializer.Deserialize<OpenAiImageResponse>(responseContent);
+        var geminiResponse = JsonSerializer.Deserialize<GeminiImageResponse>(responseContent);
         
-        if (openAiResponse?.Data == null || openAiResponse.Data.Length == 0)
+        if (geminiResponse?.GeneratedImages == null || geminiResponse.GeneratedImages.Length == 0)
         {
-            throw new InvalidOperationException("No image data received from OpenAI API");
+            throw new InvalidOperationException("No image data received from Gemini API");
         }
 
-        var base64Image = openAiResponse.Data[0].B64Json;
+        var base64Image = geminiResponse.GeneratedImages[0].BytesBase64Encoded;
         if (string.IsNullOrEmpty(base64Image))
         {
-            throw new InvalidOperationException("Invalid base64 image data received");
+            throw new InvalidOperationException("Invalid base64 image data received from Gemini API");
         }
 
         return Convert.FromBase64String(base64Image);
-    }
-
-    private async Task<byte[]> GenerateLocalImageAsync(string prompt)
-    {
-        // Simulate API processing time
-        await Task.Delay(1000);
-        
-        Console.WriteLine("✨ Generating demonstration image locally...");
-        
-        // Create a more realistic PNG image instead of SVG
-        // This creates a minimal PNG file that's compatible with image viewers
-        var width = 512;
-        var height = 512;
-        
-        // Simple PNG data - creates a gradient with text overlay concept
-        // For a real implementation, you'd use a proper image library like ImageSharp
-        var pngHeader = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
-        
-        // For demonstration, create an SVG and note that it represents the concept
-        var svg = $@"<?xml version='1.0' encoding='UTF-8'?>
-<svg width='{width}' height='{height}' xmlns='http://www.w3.org/2000/svg'>
-  <defs>
-    <linearGradient id='grad' x1='0%' y1='0%' x2='100%' y2='100%'>
-      <stop offset='0%' style='stop-color:#4a90e2;stop-opacity:1' />
-      <stop offset='100%' style='stop-color:#7b68ee;stop-opacity:1' />
-    </linearGradient>
-  </defs>
-  <rect width='100%' height='100%' fill='url(#grad)'/>
-  <circle cx='256' cy='200' r='80' fill='#ffffff' opacity='0.8'/>
-  <text x='50%' y='35%' font-family='Arial, sans-serif' font-size='24' font-weight='bold' text-anchor='middle' fill='white'>
-    Generated Image
-  </text>
-  <text x='50%' y='45%' font-family='Arial, sans-serif' font-size='16' text-anchor='middle' fill='white'>
-    Concept: {EscapeXml(prompt.Length > 40 ? prompt.Substring(0, 37) + "..." : prompt)}
-  </text>
-  <text x='50%' y='75%' font-family='Arial, sans-serif' font-size='12' text-anchor='middle' fill='white' opacity='0.7'>
-    Demo Mode - In production, this would be generated by OpenAI DALL-E
-  </text>
-</svg>";
-
-        return System.Text.Encoding.UTF8.GetBytes(svg);
-    }
-
-    private static string EscapeXml(string text)
-    {
-        return text.Replace("&", "&amp;")
-                   .Replace("<", "&lt;")
-                   .Replace(">", "&gt;")
-                   .Replace("\"", "&quot;")
-                   .Replace("'", "&apos;");
     }
 
     public void Dispose()
@@ -145,17 +87,17 @@ public class GeminiImageGenerator : IDisposable
     }
 }
 
-public class OpenAiImageResponse
+public class GeminiImageResponse
 {
-    [JsonPropertyName("data")]
-    public OpenAiImageData[]? Data { get; set; }
+    [JsonPropertyName("generatedImages")]
+    public GeminiGeneratedImage[]? GeneratedImages { get; set; }
 }
 
-public class OpenAiImageData
+public class GeminiGeneratedImage
 {
-    [JsonPropertyName("b64_json")]
-    public string? B64Json { get; set; }
+    [JsonPropertyName("bytesBase64Encoded")]
+    public string? BytesBase64Encoded { get; set; }
     
-    [JsonPropertyName("url")]
-    public string? Url { get; set; }
+    [JsonPropertyName("mimeType")]
+    public string? MimeType { get; set; }
 }
