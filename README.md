@@ -104,10 +104,6 @@ dotnet run -- --prompt "test prompt" --output "./test.png" --api-key "your-key" 
 dotnet pack
 ```
 
-## Current Status
-
-🚧 **Note**: This tool currently uses a placeholder image generation system while the Google Gemini API for direct image generation is being integrated. The API integration code is prepared and ready - simply uncomment the relevant sections in `GeminiImageGenerator.cs` once the Gemini image generation API is available.
-
 ## Architecture
 
 The tool is built with:
