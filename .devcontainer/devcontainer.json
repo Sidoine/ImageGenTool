@@ -5,6 +5,9 @@
 		"ghcr.io/devcontainers/features/github-cli:1": {},
 		"ghcr.io/devcontainers/features/git:1": {}
 	},
+	"containerEnv": {
+		"GEMINI_API_KEY": "${localEnv:GEMINI_API_KEY}"
+	},
 	"customizations": {
 		"vscode": {
 			"extensions": [

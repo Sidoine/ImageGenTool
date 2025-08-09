@@ -11,8 +11,9 @@ This repository includes a development container configuration (`.devcontainer/d
 - GitHub CLI
 - Git
 - Essential VS Code extensions for .NET development and GitHub Copilot
+- Environment variable configuration for `GEMINI_API_KEY` access
 
-The development container ensures a consistent development environment with all required tools pre-installed.
+The development container ensures a consistent development environment with all required tools pre-installed and proper environment variable access for the Copilot coding agent.
 
 ## Technology Stack
 
@@ -44,6 +45,10 @@ The development container ensures a consistent development environment with all 
 - **Environment Variables**: Access secrets through `Environment.GetEnvironmentVariable("GEMINI_API_KEY")`
 - **Configuration**: Use .NET's configuration system for managing settings
 - **Logging**: Be careful not to log sensitive information like API keys
+
+### Copilot Coding Agent Environment
+
+The development container is configured to provide the `GEMINI_API_KEY` environment variable to the Copilot coding agent through the `containerEnv` configuration. This allows Copilot to access the API key when generating code that interacts with the Gemini API, following the GitHub documentation for setting environment variables in Copilot's environment.
 
 ### Code Style and Conventions
 
