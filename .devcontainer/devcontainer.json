@@ -1,0 +1,26 @@
+{
+	"name": "ImageGenTool Development Environment",
+	"image": "mcr.microsoft.com/devcontainers/dotnet:9.0",
+	"features": {
+		"ghcr.io/devcontainers/features/github-cli:1": {},
+		"ghcr.io/devcontainers/features/git:1": {}
+	},
+	"containerEnv": {
+		"GEMINI_API_KEY": "${localEnv:GEMINI_API_KEY}"
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-dotnettools.csharp",
+				"ms-dotnettools.vscode-dotnet-runtime",
+				"GitHub.copilot",
+				"GitHub.copilot-chat"
+			],
+			"settings": {
+				"dotnet.defaultSolution": "ImageGenTool.sln"
+			}
+		}
+	},
+	"postCreateCommand": "dotnet --version",
+	"remoteUser": "vscode"
+}
