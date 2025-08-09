@@ -4,6 +4,16 @@
 
 ImageGenTool is a .NET application for generating images using AI services, specifically integrated with Google's Gemini API.
 
+## Development Environment
+
+This repository includes a development container configuration (`.devcontainer/devcontainer.json`) that pre-installs:
+- .NET SDK 9.0
+- GitHub CLI
+- Git
+- Essential VS Code extensions for .NET development and GitHub Copilot
+
+The development container ensures a consistent development environment with all required tools pre-installed.
+
 ## Technology Stack
 
 - **Framework**: .NET SDK 9
