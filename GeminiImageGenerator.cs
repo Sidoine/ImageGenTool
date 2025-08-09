@@ -30,30 +30,33 @@ public class GeminiImageGenerator : IDisposable
 
     private async Task<byte[]> CallGeminiApiAsync(string prompt)
     {
-        // Using Google's Imagen API (part of Google AI) for image generation
-        // Based on the documentation at https://ai.google.dev/gemini-api/docs/image-generation
-        var requestUrl = $"https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:generateImage?key={_apiKey}";
+        // Using Google Gemini API for image generation
+        // Based on https://ai.google.dev/gemini-api/docs/image-generation
+        var requestUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent";
         
         _httpClient.DefaultRequestHeaders.Clear();
+        _httpClient.DefaultRequestHeaders.Add("x-goog-api-key", _apiKey);
         _httpClient.Timeout = TimeSpan.FromSeconds(60);
         
         var requestBody = new
         {
-            prompt = prompt,
-            config = new
+            contents = new[]
             {
-                number_of_images = 1,
-                image_format = "PNG",
-                aspect_ratio = "1:1",
-                safety_filter_level = "block_only_high"
+                new
+                {
+                    parts = new[]
+                    {
+                        new { text = prompt }
+                    }
+                }
+            },
+            generationConfig = new
+            {
+                responseModalities = new[] { "TEXT", "IMAGE" }
             }
         };
 
-        var json = JsonSerializer.Serialize(requestBody, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-
+        var json = JsonSerializer.Serialize(requestBody);
         var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
         
         var response = await _httpClient.PostAsync(requestUrl, content);
@@ -65,39 +68,43 @@ public class GeminiImageGenerator : IDisposable
         }
 
         var responseContent = await response.Content.ReadAsStringAsync();
-        var geminiResponse = JsonSerializer.Deserialize<GeminiImageResponse>(responseContent);
         
-        if (geminiResponse?.GeneratedImages == null || geminiResponse.GeneratedImages.Length == 0)
-        {
-            throw new InvalidOperationException("No image data received from Gemini API");
-        }
-
-        var base64Image = geminiResponse.GeneratedImages[0].BytesBase64Encoded;
+        // Parse response to extract base64 image data
+        // The response contains the image data in a "data" field that we need to extract
+        var base64Image = ExtractImageDataFromResponse(responseContent);
+        
         if (string.IsNullOrEmpty(base64Image))
         {
-            throw new InvalidOperationException("Invalid base64 image data received from Gemini API");
+            throw new InvalidOperationException("No image data received from Gemini API response");
         }
 
         return Convert.FromBase64String(base64Image);
+    }
+
+    private string ExtractImageDataFromResponse(string responseContent)
+    {
+        // Extract image data similar to: grep -o '"data": "[^"]*"' | cut -d'"' -f4
+        var dataPattern = "\"data\": \"";
+        var dataIndex = responseContent.IndexOf(dataPattern);
+        
+        if (dataIndex == -1)
+        {
+            throw new InvalidOperationException("No image data found in Gemini API response");
+        }
+        
+        var startIndex = dataIndex + dataPattern.Length;
+        var endIndex = responseContent.IndexOf("\"", startIndex);
+        
+        if (endIndex == -1)
+        {
+            throw new InvalidOperationException("Invalid image data format in Gemini API response");
+        }
+        
+        return responseContent.Substring(startIndex, endIndex - startIndex);
     }
 
     public void Dispose()
     {
         _httpClient?.Dispose();
     }
-}
-
-public class GeminiImageResponse
-{
-    [JsonPropertyName("generatedImages")]
-    public GeminiGeneratedImage[]? GeneratedImages { get; set; }
-}
-
-public class GeminiGeneratedImage
-{
-    [JsonPropertyName("bytesBase64Encoded")]
-    public string? BytesBase64Encoded { get; set; }
-    
-    [JsonPropertyName("mimeType")]
-    public string? MimeType { get; set; }
 }
