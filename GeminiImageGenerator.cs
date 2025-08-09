@@ -1,5 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Processing;
 
 namespace ImageGenTool;
 
@@ -20,7 +22,13 @@ public class GeminiImageGenerator : IDisposable
         
         try
         {
-            return await CallGeminiApiAsync(prompt, width, height);
+            var rawImageData = await CallGeminiApiAsync(prompt, width, height);
+            
+            // Ensure the image has the exact requested dimensions
+            Console.WriteLine($"🖼️  Processing image to ensure {width}x{height} dimensions...");
+            var processedImageData = await EnsureImageDimensionsAsync(rawImageData, width, height);
+            
+            return processedImageData;
         }
         catch (Exception ex)
         {
@@ -101,6 +109,73 @@ public class GeminiImageGenerator : IDisposable
         }
         
         return responseContent.Substring(startIndex, endIndex - startIndex);
+    }
+
+    private async Task<byte[]> EnsureImageDimensionsAsync(byte[] imageData, int targetWidth, int targetHeight)
+    {
+        using var inputStream = new MemoryStream(imageData);
+        using var image = await Image.LoadAsync(inputStream);
+        
+        var originalWidth = image.Width;
+        var originalHeight = image.Height;
+        
+        // If the image already has the correct dimensions, return as-is
+        if (originalWidth == targetWidth && originalHeight == targetHeight)
+        {
+            Console.WriteLine($"✅ Image already has correct dimensions ({originalWidth}x{originalHeight})");
+            return imageData;
+        }
+        
+        Console.WriteLine($"📏 Original image dimensions: {originalWidth}x{originalHeight}");
+        Console.WriteLine($"🎯 Target dimensions: {targetWidth}x{targetHeight}");
+        
+        // Calculate aspect ratios
+        var originalAspect = (double)originalWidth / originalHeight;
+        var targetAspect = (double)targetWidth / targetHeight;
+        
+        // Resize and crop to ensure exact target dimensions
+        if (Math.Abs(originalAspect - targetAspect) < 0.001) 
+        {
+            // Aspect ratios match - just resize
+            Console.WriteLine("🔄 Resizing image (aspect ratios match)...");
+            image.Mutate(x => x.Resize(targetWidth, targetHeight));
+        }
+        else
+        {
+            // Aspect ratios don't match - resize to fit and then crop
+            int resizeWidth, resizeHeight;
+            
+            if (originalAspect > targetAspect)
+            {
+                // Original is wider - fit by height and crop width
+                resizeHeight = targetHeight;
+                resizeWidth = (int)Math.Round(targetHeight * originalAspect);
+            }
+            else
+            {
+                // Original is taller - fit by width and crop height  
+                resizeWidth = targetWidth;
+                resizeHeight = (int)Math.Round(targetWidth / originalAspect);
+            }
+            
+            Console.WriteLine($"🔄 Resizing to {resizeWidth}x{resizeHeight} then cropping to {targetWidth}x{targetHeight}...");
+            
+            // Resize while maintaining aspect ratio
+            image.Mutate(x => x.Resize(resizeWidth, resizeHeight));
+            
+            // Center crop to target dimensions
+            var cropX = (resizeWidth - targetWidth) / 2;
+            var cropY = (resizeHeight - targetHeight) / 2;
+            
+            image.Mutate(x => x.Crop(new Rectangle(cropX, cropY, targetWidth, targetHeight)));
+        }
+        
+        // Save processed image to memory
+        using var outputStream = new MemoryStream();
+        await image.SaveAsPngAsync(outputStream);
+        
+        Console.WriteLine($"✅ Image processed to exact dimensions: {image.Width}x{image.Height}");
+        return outputStream.ToArray();
     }
 
     public void Dispose()
