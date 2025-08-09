@@ -19,24 +19,24 @@ outputOption.AddAlias("-o");
 
 var apiKeyOption = new Option<string>(
     name: "--api-key",
-    description: "Your Google Gemini API key")
+    description: "Your OpenAI API key for DALL-E image generation. If not provided, will use OPENAI_API_KEY or GEMINI_API_KEY environment variable")
 {
-    IsRequired = true
+    IsRequired = false
 };
 apiKeyOption.AddAlias("-k");
 
-var rootCommand = new RootCommand("ImageGenTool - Generate images using Google's Gemini API")
+var rootCommand = new RootCommand("ImageGenTool - Generate images using OpenAI's DALL-E API")
 {
     promptOption,
     outputOption,
     apiKeyOption
 };
 
-rootCommand.SetHandler(async (string prompt, FileInfo output, string apiKey) =>
+rootCommand.SetHandler(async (string prompt, FileInfo output, string? apiKey) =>
 {
     try
     {
-        Console.WriteLine("🎨 ImageGenTool - Generating image using Gemini API");
+        Console.WriteLine("🎨 ImageGenTool - Generating image using OpenAI DALL-E API");
         Console.WriteLine($"📝 Prompt: {prompt}");
         Console.WriteLine($"📁 Output: {output.FullName}");
         Console.WriteLine();
@@ -48,11 +48,21 @@ rootCommand.SetHandler(async (string prompt, FileInfo output, string apiKey) =>
             return;
         }
 
+        // Get API key from parameter or environment variables
         if (string.IsNullOrWhiteSpace(apiKey))
         {
-            Console.Error.WriteLine("❌ Error: API key cannot be empty");
+            apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? 
+                     Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+        }
+
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            Console.Error.WriteLine("❌ Error: API key must be provided via --api-key parameter or OPENAI_API_KEY/GEMINI_API_KEY environment variable");
             return;
         }
+
+        Console.WriteLine("🔑 Using API key from " + (apiKey == Environment.GetEnvironmentVariable("OPENAI_API_KEY") ? "OPENAI_API_KEY" : 
+                         apiKey == Environment.GetEnvironmentVariable("GEMINI_API_KEY") ? "GEMINI_API_KEY" : "command line"));
 
         // Ensure output directory exists
         var outputDir = output.Directory;
