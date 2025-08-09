@@ -14,13 +14,13 @@ public class GeminiImageGenerator : IDisposable
         _httpClient = new HttpClient();
     }
 
-    public async Task<byte[]> GenerateImageAsync(string prompt)
+    public async Task<byte[]> GenerateImageAsync(string prompt, int width = 1024, int height = 1024)
     {
-        Console.WriteLine("🔄 Generating image with Google Gemini API...");
+        Console.WriteLine($"🔄 Generating image with Google Gemini API ({width}x{height})...");
         
         try
         {
-            return await CallGeminiApiAsync(prompt);
+            return await CallGeminiApiAsync(prompt, width, height);
         }
         catch (Exception ex)
         {
@@ -28,7 +28,7 @@ public class GeminiImageGenerator : IDisposable
         }
     }
 
-    private async Task<byte[]> CallGeminiApiAsync(string prompt)
+    private async Task<byte[]> CallGeminiApiAsync(string prompt, int width, int height)
     {
         // Using Google Gemini API for image generation
         // Based on https://ai.google.dev/gemini-api/docs/image-generation
@@ -46,7 +46,7 @@ public class GeminiImageGenerator : IDisposable
                 {
                     parts = new[]
                     {
-                        new { text = prompt }
+                        new { text = $"{prompt} (generate at {width}x{height} resolution)" }
                     }
                 }
             },
